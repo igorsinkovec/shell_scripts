@@ -1,0 +1,143 @@
+#!/bin/bash
+
+config_file='vbox.conf'
+
+
+init()
+{
+  if [ -f $config_file ]; then
+    . $config_file
+    return 0
+  else
+    echo 'Missing config file'
+    return 1
+  fi
+}
+
+check_config()
+{
+  if ! [[ -v $1 ]]; then
+    echo "Missing config '$1'"
+    return 1
+  fi
+  return 0
+}
+
+command_names()
+{
+  grep '^function' `dirname $0`'/'`basename $0` | sed 's/function //g;s/()//g;s/ # /\t\t/g'
+}
+
+help()
+{
+  echo -e 'Usage: vbox <command>\n'
+  echo 'Available commands:'
+
+  command_names | {
+    while read c; do
+      echo -e "\t$c"
+    done
+  }
+}
+
+try()
+{
+  cmd=$1
+  max_tries=$2
+  sleep_time=${3:-0}
+  tries=0
+
+  while [ $tries -lt $max_tries ]; do
+    if $cmd; then
+      return 0
+    else
+      tries=$(( $tries + 1 ))
+      sleep $sleep_time
+    fi
+  done
+
+  return 1
+}
+
+
+function start() # Start the virtual machine in headless mode
+{
+  if ! check_config 'box_name' &>/dev/null; then exit 0; fi
+  vboxmanage startvm "$box_name" --type headless
+}
+
+function suspend() # Suspend the virtual machine
+{
+  if ! check_config 'box_name' &>/dev/null; then exit 0; fi
+  vboxmanage controlvm "$box_name" savestate
+}
+
+function halt() # Halt the virtual machine
+{
+  if ! check_config 'box_name' &>/dev/null; then exit 0; fi
+  vboxmanage controlvm "$box_name" poweroff soft
+}
+
+try_mount()
+{
+  echo $ssh_pass | sshfs "$ssh_user@$box_ip:$box_share" "$share_mount" -o follow_symlinks -o workaround=nonodelay -o workaround=rename -o password_stdin
+}
+
+function mount() # Mount the machine shared folder to local filesystem
+{
+  if ! check_config 'share_mount' &>/dev/null; then exit 0; fi
+
+  check_config 'ssh_user'
+  check_config 'ssh_pass'
+  check_config 'box_ip'
+  check_config 'box_share'
+  check_config 'share_mount'
+
+  if ! try try_mount 3 3; then
+    echo 'Cannot mount shared directory'
+  fi
+}
+
+function unmount() # Unmount the machine shared folder
+{
+  if ! check_config 'share_mount' &>/dev/null; then exit 0; fi
+
+  fusermount -u "$share_mount"
+}
+
+try_ssh()
+{
+  sshpass -p "$ssh_pass" ssh "$ssh_user@$box_ip"
+}
+
+function ssh() # Log in to the virtual machine
+{
+  if ! check_config 'ssh_user' &>/dev/null; then exit 0; fi
+
+  check_config 'ssh_user'
+  check_config 'ssh_pass'
+  check_config 'box_ip'
+
+  if ! try try_ssh 3 ; then
+    echo 'Virtual machine is not accessible'
+  fi
+}
+
+
+
+# Switch command
+if [ $# = 0 ]; then
+  help
+elif command_names | cut -f 1 | grep -q $1 ; then
+  if init; then
+    $1
+  else
+    exit 1
+  fi
+else
+  echo "Unknown command: $1"
+  exit 1
+fi
+
+
+exit 0
