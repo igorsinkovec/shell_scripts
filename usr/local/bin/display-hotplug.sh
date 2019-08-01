@@ -45,9 +45,13 @@ windows_to_screen_0()
 {
   wmctrl -l | grep -v '\-1 ' | sort -nr -k2 | {
     while read window_def; do
-      if ! skip_window $window_def; then
-        set $window_def
-        window_id=$1
+      set $window_def
+      window_id=$1
+
+      if skip_window $window_def; then
+        echo "$(date) Skipping window '$window_def'" >> $log_file
+      else
+        echo "$(date) Moving window '$window_def'" >> $log_file
         sleep $delay
         wmctrl -i -a "$window_id"
         sleep $delay
