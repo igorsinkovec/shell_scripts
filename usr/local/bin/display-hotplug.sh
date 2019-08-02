@@ -96,6 +96,7 @@ else
 
   while [ $(num_displays) -gt 1 ] && [ $num_tries -lt $max_tries ]; do
     sleep $pause
+    (("num_tries++"))
   done
 
   if [ $(num_displays) -gt 1 ]; then
