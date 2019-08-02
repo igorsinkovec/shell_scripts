@@ -43,12 +43,12 @@ try_move_windows()
 
 windows_to_screen_0()
 {
-  wmctrl -l | grep -v '\-1 ' | sort -nr -k2 | {
+  wmctrl -lx | sort -nr -k2 | awk '{$4=""; print $0}' | {
     while read window_def; do
       set $window_def
       window_id=$1
 
-      if skip_window $window_def; then
+      if skip_window "$window_def"; then
         echo "$(date) Skipping '$window_def'" >> $log_file
       else
         echo "$(date) Moving '$window_def'" >> $log_file
