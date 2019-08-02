@@ -29,7 +29,7 @@ try_move_windows()
   # wait for another display to appear
   if [ $(num_displays) -eq 1 ]; then
     echo "$(date) Only 1 display found, doing nothing" >> $log_file
-    return 1
+    false; return
   fi
 
   echo "$(date) Found $(num_displays) displays, moving windows" >> $log_file
@@ -59,7 +59,7 @@ windows_to_screen_0()
       fi
     done
   }
-  return 0
+  true
 }
 
 skip_window()
@@ -70,7 +70,7 @@ skip_window()
     [[ "$window_def" == *"$window_to_skip"* ]] && return;
   done
 
-  return 1
+  false
 }
 
 
