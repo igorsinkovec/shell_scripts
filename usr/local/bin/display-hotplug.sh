@@ -49,9 +49,9 @@ windows_to_screen_0()
       window_id=$1
 
       if skip_window $window_def; then
-        echo "$(date) Skipping window '$window_def'" >> $log_file
+        echo "$(date) Skipping '$window_def'" >> $log_file
       else
-        echo "$(date) Moving window '$window_def'" >> $log_file
+        echo "$(date) Moving '$window_def'" >> $log_file
         sleep $delay
         wmctrl -i -a "$window_id"
         sleep $delay
