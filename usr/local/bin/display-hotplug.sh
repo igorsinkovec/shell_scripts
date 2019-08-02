@@ -64,10 +64,10 @@ windows_to_screen_0()
 
 skip_window()
 {
-  for skip_window_name in "${skip_windows[@]}"; do
-    if [[ "$1" == *"$skip_window_name"* ]]; then
-      return 0
-    fi
+  window_def=$1
+  # wildcard match the window definition against a list of windows to skip
+  for window_to_skip in "${skip_windows[@]}"; do
+    [[ "$window_def" == *"$window_to_skip"* ]] && return;
   done
 
   return 1
