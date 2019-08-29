@@ -1,132 +1,83 @@
 #!/bin/bash
+# A user-friendly front for tlp's battery functionality
 
 # battery
 version=0.3
 
 # config file
-config_file='/usr/local/bin/battery.conf'
+config_file='/usr/local/etc/battery.conf'
+stat_file="$HOME/.tlp-stat"
 
 # parameter default values
-charge_threshold_lower=40
-charge_threshold_upper=80
-charge_threshold_full=96
-
-# stat
-stat=${stat:-"$(sudo tlp-stat -b)"}
+charge_threshold_start=75
+charge_threshold_stop=90
+charge_threshold_full=100
 
 
 #####################################
 ###       Private functions       ###
 #####################################
 
+
+# gets battery status, writes to a file and outputs the contents
+get_stat()
+{
+  [ -f $stat_file ] || sudo tlp-stat -b > $stat_file
+  cat $stat_file
+}
+
+# list command names for this script
 command_names()
 {
   grep '^function' `dirname $0`'/'`basename $0` | sed 's/function //g;s/()//g;s/ # /\t/g'
 }
 
-help()
-{
-  echo -e "Usage: $(basename $0) <command> [<battery_id>]\n"
-  echo 'Available commands:'
-  # @TODO: output in two columns
-
-  command_names | {
-    while read c; do
-      echo -e "\t$c"
-    done
-  }
-}
-
+# string replace
 replace()
 {
   sed "s#$1#$2#g" < /dev/stdin
   echo
 }
 
+# divide by 1000 and round to one decimal
+divide_and_round ()
+{
+  in=`cat < /dev/stdin`
+  value=`echo $in \\* 0.01 | bc | awk '{print int($1+0.5)}'`
+  value=`echo $value \\* 0.1 | bc`
+  echo $value
+}
+
+# extract a value from a line of text
 value_of()
 {
   local pattern=$1
   local source=$2
-  local line=$(grep "$pattern" <<< "$source" | head -n 1)
+  local limit=$3
+  local line=$(grep "$pattern" <<< "$source" | head -n ${limit:-1})
   local value=$(cut -d '=' -f 2 <<< "$line" | replace "\[.*\]" | replace " ")
 
   echo "$value"
 }
-
-# get_charge()
-# {
-
-# }
 
 valid_battery()
 {
   for bat in $(list | cut -c -4); do
     [[ "$bat" == "$1" ]] && return;
   done
-
-  false
+  false; return
 }
 
-output_state()
+battery_list()
 {
-  local bat=$1
-
-  status=$(value_of "$bat/status" "$stat" | replace 'Unknown(thresholdeffective)' 'Idle')
-
-  echo "$bat: $status"
+  if [ "$1" == "all" ] ; then
+    list | cut -c -4; return
+  elif valid_battery "$1" ; then
+    echo "$1" ; return
+  else
+    false ; return
+  fi
 }
-
-  # start_threshold=$(value_of "$bat/charge_start_threshold" "$stat")
-  # stop_threshold=$(value_of "$bat/charge_stop_threshold" "$stat")
-  # charge=$(value_of "Charge" "$stat")
-
-  # echo "$bat: $status $start_threshold $stop_threshold $charge"
-
-
-# +++ ThinkPad Battery Status: BAT0 (Main / Internal)
-# /sys/class/power_supply/BAT0/manufacturer                   = LGC
-# /sys/class/power_supply/BAT0/model_name                     = 01AV489
-# /sys/class/power_supply/BAT0/cycle_count                    =      9
-# /sys/class/power_supply/BAT0/energy_full_design             =  23940 [mWh]
-# /sys/class/power_supply/BAT0/energy_full                    =  23340 [mWh]
-# /sys/class/power_supply/BAT0/energy_now                     =  18290 [mWh]
-# /sys/class/power_supply/BAT0/power_now                      =      0 [mW]
-# /sys/class/power_supply/BAT0/status                         = Unknown (threshold effective)
-
-# /sys/class/power_supply/BAT0/charge_start_threshold         =     40 [%]
-# /sys/class/power_supply/BAT0/charge_stop_threshold          =     80 [%]
-# tpacpi-bat.BAT0.forceDischarge                              =      0
-
-# Charge                                                      =   78.4 [%]
-# Capacity                                                    =   97.5 [%]
-
-# +++ ThinkPad Battery Status: BAT1 (Ultrabay / Slice / Replaceable)
-# /sys/class/power_supply/BAT1/manufacturer                   = LGC
-# /sys/class/power_supply/BAT1/model_name                     = 01AV492
-# /sys/class/power_supply/BAT1/cycle_count                    =      8
-# /sys/class/power_supply/BAT1/energy_full_design             =  71100 [mWh]
-# /sys/class/power_supply/BAT1/energy_full                    =  71090 [mWh]
-# /sys/class/power_supply/BAT1/energy_now                     =  56520 [mWh]
-# /sys/class/power_supply/BAT1/power_now                      =      0 [mW]
-# /sys/class/power_supply/BAT1/status                         = Unknown (threshold effective)
-
-# /sys/class/power_supply/BAT1/charge_start_threshold         =     40 [%]
-# /sys/class/power_supply/BAT1/charge_stop_threshold          =     80 [%]
-# tpacpi-bat.BAT1.forceDischarge                              =      0
-
-# Charge                                                      =   79.5 [%]
-# Capacity                                                    =  100.0 [%]
-
-# +++ Charge total                                            =   79.2 [%]
-
-
-  # status=$(echo "$cleanstat" | grep status | replace '/status' | replace 'Unknown (threshold effective)' 'Idle')
-  # echo "$status"
-
-  # charge=$(echo "$cleanstat" | egrep 'charge_.*_threshold' | replace '/charge_' ': ' | replace '_threshold')
-  # charge=$(echo "$cleanstat" | grep -i 'charge')
-  # echo "$charge"
-
 
 
 #####################################
@@ -135,52 +86,79 @@ output_state()
 
 function list() # List installed batteries
 {
-  grep 'ThinkPad Battery Status' <<< "$stat" | cut -c 30-
+  get_stat | grep 'ThinkPad Battery Status' | cut -c 30-
 }
 
-function test() # @TODO: remove
+function info() # Display detailed battery information
 {
-  if valid_battery $1; then
-    echo "$1 is a valid battery"
-  else
-    echo "Battery $1 does not exist"
-  fi
+  local output="ID | Charge | Status | Power | Start | Stop"
+  local charges=($(value_of "Charge" "$(get_stat)" 4 | tail -n 3))
+
+  i=0
+  while read bat; do
+    local status=$(value_of "$bat/status" "$(get_stat)" | replace 'Unknown(thresholdeffective)' 'Idle')
+    local start=$(value_of "$bat/charge_start_threshold" "$(get_stat)")
+    local stop=$(value_of "$bat/charge_stop_threshold" "$(get_stat)")
+    local power=$(value_of "$bat/power_now" "$(get_stat)" | divide_and_round)
+    local charge=${charges[$i]}
+    i+=1
+    output+="\n$bat | $charge % | $status | $power W | $start % | $stop %"
+  done < <(battery_list ${1:-"all"})
+
+  echo -e "$output" | column -t -s '|'
+  echo
+  list
 }
 
-function state() # Output charging state
+function full() # Charge the battery to the configured "full" threshold
 {
-  # @TODO: refactor into a "battery_determiner", passing the battery argument and the function to call
-  if (( "$#" == 0 )) ; then
-    # both batteries
-    for bat in $(list | cut -c -4); do
-      output_state "$bat"
+  for bat in $(battery_list ${1:-"all"}); do
+    sudo tlp setcharge $((charge_threshold_full-4)) $charge_threshold_full $bat
+  done
+}
+
+function up() # Charge the battery to the configured "stop" threshold
+{
+  for bat in $(battery_list ${1:-"all"}); do
+    sudo tlp setcharge $((charge_threshold_stop-4)) $charge_threshold_stop $bat
+  done
+}
+
+function keep() # Prolong battery life by keeping the charge between optimal thresholds
+{
+  for bat in $(battery_list ${1:-"all"}); do
+    sudo tlp setcharge $charge_threshold_start $charge_threshold_stop $bat
+  done
+}
+
+function params() # Display configured parameters
+{
+  echo "charge_threshold_start:   $charge_threshold_start %"
+  echo "charge_threshold_stop:    $charge_threshold_stop %"
+  echo "charge_threshold_full:    $charge_threshold_full %"
+}
+
+function help() # Display this help and exit
+{
+  echo -e "Usage: $(basename $0) <command> [<battery_id>]\n"
+  echo 'Available commands:'
+
+  command_names | {
+    while read c; do
+      IFS=$'\t'
+      cmd=($c)
+      printf "        %-16s%s\n" ${cmd[*]}
     done
-  elif valid_battery "$1" ; then
-    local bat=$1
-    output_state "$bat"
-  fi
-
-  false; return
+  }
 }
 
-function full() # Fully charge the battery
+function version() # Display version information and exit
 {
-  echo "$FUNCNAME: Not implemented!"
-}
-
-# @TODO: rename and reword
-function conserve() # Conserve the battery
-{
-  echo "$FUNCNAME: Not implemented!"
-}
-
-function version() # Output version and exit
-{
-  echo "$version"
+  echo "$(basename $0) v$version"
 }
 
 
-# load config file
+# Load config file
 if [ -f $config_file ]; then
 . $config_file
 fi
@@ -188,13 +166,23 @@ fi
 
 # Switch command
 if [ $# = 0 ]; then
-  state $2
-# @TODO: search in array instead of grepping
-elif command_names | cut -f 1 | grep -q $1 ; then
-  $1 $2
+  # default command
+  info
+  echo -e "\nType '$(basename $0) help' for more info."
+elif command_names | cut -f 1 | grep -qw $1 ; then
+  # validate ID argument
+  if [ $# = 2 ] && ! valid_battery $2; then
+    echo "Battery '$2' is not installed."
+  else
+    # run command with parameters
+    $@
+  fi
 else
+  echo -e "\nError: Unknown command '$1'.\n"
   help
 fi
 
+# Cleanup
+[ -f $stat_file ] && rm $stat_file
 
 exit 0
