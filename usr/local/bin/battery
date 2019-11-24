@@ -40,12 +40,9 @@ replace()
 }
 
 # divide by 1000 and round to one decimal
-divide_and_round ()
+divide_and_round()
 {
-  in=`cat < /dev/stdin`
-  value=`echo $in \\* 0.01 | bc | awk '{print int($1+0.5)}'`
-  value=`echo $value \\* 0.1 | bc`
-  echo $value
+  awk -v I="$1" 'BEGIN{printf("%d", (I*0.01)+0.5)}'
 }
 
 # extract a value from a line of text
@@ -99,7 +96,7 @@ function info() # Display detailed battery information
     local status=$(value_of "$bat/status" "$(get_stat)" | replace 'Unknown(thresholdeffective)' 'Idle')
     local start=$(value_of "$bat/charge_start_threshold" "$(get_stat)")
     local stop=$(value_of "$bat/charge_stop_threshold" "$(get_stat)")
-    local power=$(value_of "$bat/power_now" "$(get_stat)" | divide_and_round)
+    local power=$(divide_and_round $(value_of "$bat/power_now" "$(get_stat)"))
     local charge=${charges[$i]}
     i+=1
     output+="\n$bat | $charge % | $status | $power W | $start % | $stop %"
