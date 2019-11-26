@@ -21,7 +21,7 @@ set_brightness()
 
 num_displays()
 {
-  echo $(xrandr --listmonitors | head -n1 | egrep -o '[0-9]')
+  echo $(xrandr --listmonitors | head -n1 | grep -E -o '[0-9]')
 }
 
 try_move_windows()
