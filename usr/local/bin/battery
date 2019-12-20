@@ -2,7 +2,7 @@
 # A user-friendly front for tlp's battery functionality
 
 # battery
-version=0.3
+version=0.3.1
 
 # config file
 config_file='/usr/local/etc/battery.conf'
@@ -101,6 +101,12 @@ function info() # Display detailed battery information
     local stop=$(value_of "$bat/charge_stop_threshold" "$(get_stat)")
     local power=$(value_of "$bat/power_now" "$(get_stat)" | divide_and_round)
     local charge=${charges[$i]}
+
+    if [ "$start" == "" ]; then
+      local start=$(value_of "$bat.startThreshold" "$(get_stat)")
+      local stop=$(value_of "$bat.stopThreshold" "$(get_stat)")
+    fi
+
     i+=1
     output+="\n$bat | $charge % | $status | $power W | $start % | $stop %"
   done < <(battery_list ${1:-"all"})
